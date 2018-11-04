@@ -2,22 +2,22 @@
 {
     public class LabelOperand : IOperand
     {
-        private readonly string _label;
+        public readonly string label;
 
         public LabelOperand(string label)
         {
-            _label = label;
+            this.label = label;
         }
 
         public bool Equals(IOperand other)
         {
             var o = other as LabelOperand;
-            return _label == o?._label;
+            return label == o?.label;
         }
 
         public override string ToString()
         {
-            return _label;
+            return label;
         }
     }
 }

@@ -5,27 +5,27 @@ namespace symdump.symfile
 {
     public class Label
     {
-        private readonly TypedValue _typedOffset;
+        private readonly TypedValue m_typedOffset;
 
         public Label(TypedValue typedValue, BinaryReader fs)
         {
-            _typedOffset = typedValue;
-            Name = fs.ReadPascalString();
+            m_typedOffset = typedValue;
+            name = fs.readPascalString();
         }
 
         public Label(TypedValue typedValue, string name)
         {
-            _typedOffset = typedValue;
-            Name = name;
+            m_typedOffset = typedValue;
+            this.name = name;
         }
 
-        public uint Offset => (uint) _typedOffset.Value;
+        public uint offset => (uint) m_typedOffset.value;
 
-        public string Name { get; }
+        public string name { get; }
 
         public override string ToString()
         {
-            return $"0x{Offset:X} {Name}";
+            return $"0x{offset:X} {name}";
         }
     }
 }

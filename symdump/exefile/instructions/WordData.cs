@@ -4,21 +4,21 @@ namespace symdump.exefile.instructions
 {
     public class WordData : Instruction
     {
-        private readonly uint _data;
+        public readonly uint data;
 
         public WordData(uint data)
         {
-            _data = data;
+            this.data = data;
         }
 
-        public override IOperand[] Operands { get; } = new IOperand[0];
+        public override IOperand[] operands { get; } = new IOperand[0];
 
         public override string ToString()
         {
-            return $".word 0x{_data:x}";
+            return $".word 0x{data:x}";
         }
 
-        public override string AsReadable()
+        public override string asReadable()
         {
             return ToString();
         }

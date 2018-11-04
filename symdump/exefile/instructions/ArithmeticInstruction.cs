@@ -19,26 +19,26 @@ namespace symdump.exefile.instructions
             BitXor
         }
 
-        private readonly Operation _operation;
+        public readonly Operation operation;
 
         public ArithmeticInstruction(Operation operation, IOperand dest, IOperand lhs, IOperand rhs)
         {
-            _operation = operation;
-            Operands = new[] {dest, lhs, rhs};
+            this.operation = operation;
+            operands = new[] {dest, lhs, rhs};
         }
 
-        public override IOperand[] Operands { get; }
+        public override IOperand[] operands { get; }
 
-        private IOperand Destination => Operands[0];
-        private IOperand Lhs => Operands[1];
-        private IOperand Rhs => Operands[2];
+        public IOperand destination => operands[0];
+        public IOperand lhs => operands[1];
+        public IOperand rhs => operands[2];
 
-        private bool IsInplace => Destination.Equals(Lhs);
+        public bool isInplace => destination.Equals(lhs);
 
-        public override string AsReadable()
+        public override string asReadable()
         {
             string op;
-            switch (_operation)
+            switch (operation)
             {
                 case Operation.Add:
                     op = "+";
@@ -74,9 +74,9 @@ namespace symdump.exefile.instructions
                     throw new ArgumentOutOfRangeException();
             }
 
-            return IsInplace
-                ? $"{Destination} {op}= {Rhs}"
-                : $"{Destination} = {Lhs} {op} {Rhs}";
+            return isInplace
+                ? $"{destination} {op}= {rhs}"
+                : $"{destination} = {lhs} {op} {rhs}";
         }
     }
 }

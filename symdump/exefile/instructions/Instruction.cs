@@ -4,15 +4,15 @@ namespace symdump.exefile.instructions
 {
     public abstract class Instruction
     {
-        public bool IsBranchDelaySlot;
+        public bool isBranchDelaySlot;
 
         protected Instruction(bool isBranchDelaySlot = false)
         {
-            IsBranchDelaySlot = isBranchDelaySlot;
+            this.isBranchDelaySlot = isBranchDelaySlot;
         }
 
-        public abstract IOperand[] Operands { get; }
+        public abstract IOperand[] operands { get; }
 
-        public abstract string AsReadable();
+        public abstract string asReadable();
     }
 }

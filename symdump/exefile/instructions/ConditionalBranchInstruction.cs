@@ -19,24 +19,24 @@ namespace symdump.exefile.instructions
             SignedGreaterEqual
         }
 
-        private readonly Operation _operation;
+        public readonly Operation operation;
 
         public ConditionalBranchInstruction(Operation operation, IOperand lhs, IOperand rhs, IOperand target)
         {
-            _operation = operation;
-            Operands = new[] {lhs, rhs, target};
+            this.operation = operation;
+            operands = new[] {lhs, rhs, target};
         }
 
-        private IOperand Lhs => Operands[0];
-        private IOperand Rhs => Operands[1];
-        private IOperand Target => Operands[2];
+        public IOperand lhs => operands[0];
+        public IOperand rhs => operands[1];
+        public IOperand target => operands[2];
 
-        public override IOperand[] Operands { get; }
+        public override IOperand[] operands { get; }
 
-        public override string AsReadable()
+        public override string asReadable()
         {
             string op;
-            switch (_operation)
+            switch (operation)
             {
                 case Operation.Less:
                     op = "<";
@@ -72,7 +72,7 @@ namespace symdump.exefile.instructions
                     throw new ArgumentOutOfRangeException();
             }
 
-            return $"if({Lhs} {op} {Rhs}) goto {Target}";
+            return $"if({lhs} {op} {rhs}) goto {target}";
         }
     }
 }

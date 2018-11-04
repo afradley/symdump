@@ -9,62 +9,62 @@ namespace symdump.symfile
 {
     public class Function
     {
-        public readonly uint Address;
-        private readonly List<Block> _blocks = new List<Block>();
-        private readonly string _file;
-        private readonly uint _lastLine;
-        private readonly uint _line;
-        private readonly uint _mask;
-        private readonly int _maskOffs;
-        private readonly string _name;
+        public readonly uint address;
+        private readonly List<Block> m_blocks = new List<Block>();
+        private readonly string m_file;
+        private readonly uint m_lastLine;
+        private readonly uint m_line;
+        private readonly uint m_mask;
+        private readonly int m_maskOffs;
+        private readonly string m_name;
 
-        private readonly List<string> _parameters = new List<string>();
-        private readonly Register _register;
-        private readonly string _returnType;
-        private readonly Register _stackBase;
-        private readonly uint _stackFrameSize;
+        private readonly List<string> m_parameters = new List<string>();
+        private readonly Register m_register;
+        private readonly string m_returnType;
+        private readonly Register m_stackBase;
+        private readonly uint m_stackFrameSize;
 
         public Function(BinaryReader reader, uint ofs, IReadOnlyDictionary<string, string> funcTypes)
         {
-            Address = ofs;
+            address = ofs;
 
-            _stackBase = (Register) reader.ReadUInt16();
-            _stackFrameSize = reader.ReadUInt32();
-            _register = (Register) reader.ReadUInt16();
-            _mask = reader.ReadUInt32();
-            _maskOffs = reader.ReadInt32();
+            m_stackBase = (Register) reader.ReadUInt16();
+            m_stackFrameSize = reader.ReadUInt32();
+            m_register = (Register) reader.ReadUInt16();
+            m_mask = reader.ReadUInt32();
+            m_maskOffs = reader.ReadInt32();
 
-            _line = reader.ReadUInt32();
-            _file = reader.ReadPascalString();
-            _name = reader.ReadPascalString();
+            m_line = reader.ReadUInt32();
+            m_file = reader.readPascalString();
+            m_name = reader.readPascalString();
 
-            if (!funcTypes.TryGetValue(_name, out _returnType))
-                _returnType = "__UNKNOWN__";
+            if (!funcTypes.TryGetValue(m_name, out m_returnType))
+                m_returnType = "__UNKNOWN__";
 
             while (true)
             {
                 var typedValue = new TypedValue(reader);
 
-                if (reader.SkipSld(typedValue))
+                if (reader.skipSld(typedValue))
                     continue;
 
                 TypeInfo ti;
                 string memberName;
-                switch (typedValue.Type & 0x7f)
+                switch (typedValue.type & 0x7f)
                 {
                     case 14: // end of function
-                        _lastLine = reader.ReadUInt32();
+                        m_lastLine = reader.ReadUInt32();
                         return;
                     case 16: // begin of block
-                        _blocks.Add(new Block(reader, (uint) typedValue.Value, reader.ReadUInt32(), this));
+                        m_blocks.Add(new Block(reader, (uint) typedValue.value, reader.ReadUInt32(), this));
                         continue;
                     case 20:
-                        ti = reader.ReadTypeInfo(false);
-                        memberName = reader.ReadPascalString();
+                        ti = reader.readTypeInfo(false);
+                        memberName = reader.readPascalString();
                         break;
                     case 22:
-                        ti = reader.ReadTypeInfo(true);
-                        memberName = reader.ReadPascalString();
+                        ti = reader.readTypeInfo(true);
+                        memberName = reader.readPascalString();
                         break;
                     default:
                         throw new Exception("Nope");
@@ -73,41 +73,41 @@ namespace symdump.symfile
                 if (ti == null || memberName == null)
                     break;
 
-                if (ti.ClassType == ClassType.Argument)
-                    _parameters.Add($"{ti.AsCode(memberName)} /*stack {typedValue.Value}*/");
-                else if (ti.ClassType == ClassType.RegParam)
-                    _parameters.Add($"{ti.AsCode(memberName)} /*${(Register) typedValue.Value}*/");
+                if (ti.classType == ClassType.Argument)
+                    m_parameters.Add($"{ti.asCode(memberName)} /*stack {typedValue.value}*/");
+                else if (ti.classType == ClassType.RegParam)
+                    m_parameters.Add($"{ti.asCode(memberName)} /*${(Register) typedValue.value}*/");
             }
         }
 
-        private IEnumerable<Register> SavedRegisters => Enumerable.Range(0, 32)
-            .Where(i => ((1 << i) & _mask) != 0)
+        private IEnumerable<Register> savedRegisters => Enumerable.Range(0, 32)
+            .Where(i => ((1 << i) & m_mask) != 0)
             .Select(i => (Register) i);
 
-        public void Dump(IndentedTextWriter writer)
+        public void dump(IndentedTextWriter writer)
         {
             writer.WriteLine("/*");
-            writer.WriteLine($" * Offset 0x{Address:X}");
-            writer.WriteLine($" * {_file} (line {_line})");
-            writer.WriteLine($" * Stack frame base ${_stackBase}, size {_stackFrameSize}");
-            if (_mask != 0)
-                writer.WriteLine($" * Saved registers at offset {_maskOffs}: {string.Join(" ", SavedRegisters)}");
+            writer.WriteLine($" * Offset 0x{address:X}");
+            writer.WriteLine($" * {m_file} (line {m_line})");
+            writer.WriteLine($" * Stack frame base ${m_stackBase}, size {m_stackFrameSize}");
+            if (m_mask != 0)
+                writer.WriteLine($" * Saved registers at offset {m_maskOffs}: {string.Join(" ", savedRegisters)}");
             writer.WriteLine(" */");
 
-            writer.WriteLine(GetSignature());
+            writer.WriteLine(getSignature());
 
-            _blocks.ForEach(b => b.Dump(writer));
+            m_blocks.ForEach(b => b.dump(writer));
 
-            if (_blocks.Count != 0)
+            if (m_blocks.Count != 0)
                 return;
-
+            
             writer.WriteLine("{");
             writer.WriteLine("}");
         }
 
-        public string GetSignature()
+        public string getSignature()
         {
-            return $"{_returnType} /*${_register}*/ {_name}({string.Join(", ", _parameters)})";
+            return $"{m_returnType} /*${m_register}*/ {m_name}({string.Join(", ", m_parameters)})";
         }
     }
 }

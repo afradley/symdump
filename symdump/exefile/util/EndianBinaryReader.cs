@@ -5,65 +5,65 @@ namespace symdump.exefile.util
 {
     public class EndianBinaryReader : IDisposable
     {
-        private BinaryReader _stream;
+        private BinaryReader m_stream;
 
         public EndianBinaryReader(Stream s)
             : this(new BinaryReader(s))
         {
         }
 
-        private EndianBinaryReader(BinaryReader stream)
+        public EndianBinaryReader(BinaryReader stream)
         {
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
             if (!stream.BaseStream.CanRead)
                 throw new ArgumentException("Stream isn't readable", nameof(stream));
-            _stream = stream;
+            m_stream = stream;
         }
 
-        public Stream BaseStream => _stream.BaseStream;
+        public Stream baseStream => m_stream.BaseStream;
 
         public void Dispose()
         {
-            _stream.Dispose();
-            _stream = null;
+            m_stream.Dispose();
+            m_stream = null;
         }
 
-        public byte[] ReadBytes(int n)
+        public byte[] readBytes(int n)
         {
-            return _stream.ReadBytes(n);
+            return m_stream.ReadBytes(n);
         }
 
-        public byte ReadByte()
+        public byte readByte()
         {
-            return _stream.ReadByte();
+            return m_stream.ReadByte();
         }
 
-        public sbyte ReadSByte()
+        public sbyte readSByte()
         {
-            return _stream.ReadSByte();
+            return m_stream.ReadSByte();
         }
 
-        public short ReadInt16()
+        public short readInt16()
         {
-            var tmp = _stream.ReadBytes(2);
+            var tmp = m_stream.ReadBytes(2);
             return (short) ((tmp[1] << 8) | tmp[0]);
         }
 
-        public int ReadInt32()
+        public int readInt32()
         {
-            var tmp = _stream.ReadBytes(4);
+            var tmp = m_stream.ReadBytes(4);
             return (tmp[3] << 24) | (tmp[2] << 16) | (tmp[1] << 8) | tmp[0];
         }
 
-        public ushort ReadUInt16()
+        public ushort readUInt16()
         {
-            return (ushort) ReadInt16();
+            return (ushort) readInt16();
         }
 
-        public uint ReadUInt32()
+        public uint readUInt32()
         {
-            return (uint) ReadInt32();
+            return (uint) readInt32();
         }
     }
 }

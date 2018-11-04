@@ -13,238 +13,237 @@ namespace symdump.exefile
 {
     public class ExeFile
     {
-        private readonly Queue<uint> _analysisQueue = new Queue<uint>();
-        private readonly byte[] _data;
-        private readonly uint? _gpBase;
+        private readonly Queue<uint> m_analysisQueue = new Queue<uint>();
+        private readonly byte[] m_data;
+        private readonly uint? m_gpBase;
 
-        private readonly Header _header;
+        private readonly Header m_header;
 
-        private readonly SortedDictionary<uint, Instruction> _instructions = new SortedDictionary<uint, Instruction>();
-        private readonly SymFile _symFile;
-        private readonly Dictionary<uint, HashSet<uint>> _xrefs = new Dictionary<uint, HashSet<uint>>();
-        private readonly SortedSet<uint> _callees = new SortedSet<uint>();
+        private readonly SortedDictionary<uint, Instruction> m_instructions = new SortedDictionary<uint, Instruction>();
+        private readonly SymFile m_symFile;
+        private readonly Dictionary<uint, HashSet<uint>> m_xrefs = new Dictionary<uint, HashSet<uint>>();
+        private readonly SortedSet<uint> callees = new SortedSet<uint>();
 
         public ExeFile(EndianBinaryReader reader, SymFile symFile)
         {
-            _symFile = symFile;
-            reader.BaseStream.Seek(0, SeekOrigin.Begin);
+            m_symFile = symFile;
+            reader.baseStream.Seek(0, SeekOrigin.Begin);
 
-            _header = new Header(reader);
-            reader.BaseStream.Seek(0x800, SeekOrigin.Begin);
-            _data = reader.ReadBytes((int) _header.TSize);
+            m_header = new Header(reader);
+            reader.baseStream.Seek(0x800, SeekOrigin.Begin);
+            m_data = reader.readBytes((int) m_header.tSize);
 
-            _gpBase = _symFile.Labels
-                .Where(byOffset => byOffset.Value.Any(lbl => lbl.Name.Equals("__SN_GP_BASE")))
+            m_gpBase = m_symFile.labels
+                .Where(byOffset => byOffset.Value.Any(lbl => lbl.name.Equals("__SN_GP_BASE")))
                 .Select(lbl => lbl.Key)
                 .FirstOrDefault();
         }
 
-        private string GetSymbolName(uint addr, int rel = 0)
+        private string getSymbolName(uint addr, int rel = 0)
         {
             addr = (uint) (addr + rel);
 
             List<Label> lbls;
-            if (!_symFile.Labels.TryGetValue(addr, out lbls))
+            if (!m_symFile.labels.TryGetValue(addr, out lbls))
                 return $"lbl_{addr:X}";
 
-            return lbls.First().Name;
+            return lbls.First().name;
         }
 
-        private IEnumerable<string> GetSymbolNames(uint addr)
+        private IEnumerable<string> getSymbolNames(uint addr)
         {
             List<Label> lbls;
-            _symFile.Labels.TryGetValue(addr + _header.TAddr, out lbls);
-            return lbls?.Select(l => l.Name);
+            m_symFile.labels.TryGetValue(addr + m_header.tAddr, out lbls);
+            return lbls?.Select(l => l.name);
         }
 
-        private void AddCall(uint from, uint to)
+        private void addCall(uint from, uint to)
         {
-            AddXref(from, to);
-            _callees.Add(to);
+            addXref(from, to);
+            callees.Add(to);
         }
-
-        private void AddXref(uint from, uint to)
+        
+        private void addXref(uint from, uint to)
         {
             HashSet<uint> froms;
-            if (!_xrefs.TryGetValue(to, out froms))
-                _xrefs.Add(to, froms = new HashSet<uint>());
+            if (!m_xrefs.TryGetValue(to, out froms))
+                m_xrefs.Add(to, froms = new HashSet<uint>());
 
             froms.Add(from);
 
-            if (!_instructions.ContainsKey(to))
-                _analysisQueue.Enqueue(to);
+            if (!m_instructions.ContainsKey(to))
+                m_analysisQueue.Enqueue(to);
         }
 
-        private HashSet<uint> GetXrefs(uint to)
+        private HashSet<uint> getXrefs(uint to)
         {
             HashSet<uint> froms;
-            _xrefs.TryGetValue(to, out froms);
+            m_xrefs.TryGetValue(to, out froms);
             return froms;
         }
 
-        private uint DataAt(uint ofs)
+        private uint dataAt(uint ofs)
         {
             uint data;
-            data = _data[ofs++];
-            data |= (uint) _data[ofs++] << 8;
-            data |= (uint) _data[ofs++] << 16;
-            data |= (uint) _data[ofs++] << 24;
+            data = m_data[ofs++];
+            data |= (uint) m_data[ofs++] << 8;
+            data |= (uint) m_data[ofs++] << 16;
+            data |= (uint) m_data[ofs++] << 24;
             return data;
         }
 
-        private static Opcode ExtractOpcode(uint data)
+        private static Opcode extractOpcode(uint data)
         {
             return (Opcode) (data >> 26);
         }
 
-        public void Disassemble()
+        public void disassemble()
         {
-            _analysisQueue.Clear();
-            _analysisQueue.Enqueue(_header.Pc0 - _header.TAddr);
-            foreach (var addr in _symFile.Functions.Select(f => f.Address))
-                _analysisQueue.Enqueue(addr - _header.TAddr);
+            m_analysisQueue.Clear();
+            m_analysisQueue.Enqueue(m_header.pc0 - m_header.tAddr);
+            foreach (var addr in m_symFile.functions.Select(f => f.address))
+                m_analysisQueue.Enqueue(addr - m_header.tAddr);
 
-            while (_analysisQueue.Count != 0)
+            while (m_analysisQueue.Count != 0)
             {
-                var index = _analysisQueue.Dequeue();
-                if (_instructions.ContainsKey(index) || index >= _data.Length)
+                var index = m_analysisQueue.Dequeue();
+                if (m_instructions.ContainsKey(index) || index >= m_data.Length)
                     continue;
 
-                var data = DataAt(index);
+                var data = dataAt(index);
                 index += 4;
-                var insn = _instructions[index - 4] = DecodeInstruction(data, index);
+                var insn = m_instructions[index - 4] = decodeInstruction(data, index);
 
                 var cbranchInsn = insn as ConditionalBranchInstruction;
                 if (cbranchInsn != null)
                 {
-                    data = DataAt(index);
+                    data = dataAt(index);
                     index += 4;
-                    var insn2 = _instructions[index - 4] = DecodeInstruction(data, index);
-                    insn2.IsBranchDelaySlot = true;
+                    var insn2 = m_instructions[index - 4] = decodeInstruction(data, index);
+                    insn2.isBranchDelaySlot = true;
 
-                    _analysisQueue.Enqueue(index);
+                    m_analysisQueue.Enqueue(index);
 
                     continue;
                 }
-
+                
                 var callInsn = insn as CallPtrInstruction;
                 if (callInsn != null)
                 {
-                    data = DataAt(index);
+                    data = dataAt(index);
                     index += 4;
-                    var insn2 = _instructions[index - 4] = DecodeInstruction(data, index);
-                    insn2.IsBranchDelaySlot = true;
+                    var insn2 = m_instructions[index - 4] = decodeInstruction(data, index);
+                    insn2.isBranchDelaySlot = true;
 
                     continue;
                 }
-
-                _analysisQueue.Enqueue(index);
+                
+                m_analysisQueue.Enqueue(index);
             }
         }
 
-        public void Dump()
+        public void dump()
         {
-            foreach (var insn in _instructions)
+            foreach (var insn in m_instructions)
             {
-                if (_callees.Contains(insn.Key))
+                if(callees.Contains(insn.Key))
                     Console.WriteLine("### FUNCTION");
-                if (insn.Value.AsReadable().Equals("nop"))
+                if (insn.Value.asReadable().Equals("nop"))
                     continue;
 
-                var f = _symFile.FindFunction(insn.Key + _header.TAddr);
+                var f = m_symFile.findFunction(insn.Key + m_header.tAddr);
                 if (f != null)
                     Console.WriteLine();
 
-                var xrefsHere = GetXrefs(insn.Key);
+                var xrefsHere = getXrefs(insn.Key);
                 if (xrefsHere != null)
                 {
                     Console.WriteLine("# XRefs:");
                     foreach (var xref in xrefsHere)
-                        Console.WriteLine("# - " + GetSymbolName(xref));
-                    var names = GetSymbolNames(insn.Key);
+                        Console.WriteLine("# - " + getSymbolName(xref));
+                    var names = getSymbolNames(insn.Key);
                     if (names != null)
                         foreach (var name in names)
                             Console.WriteLine(name + ":");
                     else
-                        Console.WriteLine(GetSymbolName(insn.Key) + ":");
+                        Console.WriteLine(getSymbolName(insn.Key) + ":");
                 }
 
                 if (f != null)
-                    Console.WriteLine(f.GetSignature());
+                    Console.WriteLine(f.getSignature());
 
-                Console.WriteLine($"  0x{insn.Key:X}  {insn.Value.AsReadable()}");
+                Console.WriteLine($"  0x{insn.Key:X}  {insn.Value.asReadable()}");
             }
         }
 
-        private IOperand MakeGpBasedOperand(uint data, int shift, int offset)
+        private IOperand makeGpBasedOperand(uint data, int shift, int offset)
         {
             var regofs = new RegisterOffsetOperand(data, shift, offset);
-            if (_gpBase == null)
+            if (m_gpBase == null)
                 return regofs;
 
-            if (regofs.Register == Register.gp)
-                return new LabelOperand(GetSymbolName(_gpBase.Value, regofs.Offset));
+            if (regofs.register == Register.gp)
+                return new LabelOperand(getSymbolName(m_gpBase.Value, regofs.offset));
 
             return regofs;
         }
 
-        private Instruction DecodeInstruction(uint data, uint index)
+        private Instruction decodeInstruction(uint data, uint index)
         {
-            switch (ExtractOpcode(data))
+            switch (extractOpcode(data))
             {
                 case Opcode.RegisterFormat:
-                    return DecodeRegisterFormat(data);
+                    return decodeRegisterFormat(data);
                 case Opcode.PCRelative:
-                    return DecodePcRelative(index, data);
+                    return decodePcRelative(index, data);
                 case Opcode.j:
-                    AddCall(index - 4, (data & 0x03FFFFFF) << 2);
-                    _analysisQueue.Enqueue((data & 0x03FFFFFF) << 2);
-                    return new CallPtrInstruction(new LabelOperand(GetSymbolName((data & 0x03FFFFFF) << 2)), null);
+                    addCall(index - 4, (data & 0x03FFFFFF) << 2);
+                    m_analysisQueue.Enqueue((data & 0x03FFFFFF) << 2);
+                    return new CallPtrInstruction(new LabelOperand(getSymbolName((data & 0x03FFFFFF) << 2)), null);
                 case Opcode.jal:
-                    AddCall(index - 4, (data & 0x03FFFFFF) << 2);
-                    _analysisQueue.Enqueue((data & 0x03FFFFFF) << 2);
-                    return new CallPtrInstruction(new LabelOperand(GetSymbolName((data & 0x03FFFFFF) << 2)),
-                        new RegisterOperand(Register.ra));
+                    addCall(index - 4, (data & 0x03FFFFFF) << 2);
+                    m_analysisQueue.Enqueue((data & 0x03FFFFFF) << 2);
+                    return new CallPtrInstruction(new LabelOperand(getSymbolName((data & 0x03FFFFFF) << 2)), new RegisterOperand(Register.ra));
                 case Opcode.beq:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     if (((data >> 16) & 0x1F) == 0)
                         return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.Equal,
                             new RegisterOperand(data, 21),
-                            new ImmediateOperand(0),
-                            new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                            new ImmediateOperand(0), 
+                            new LabelOperand(getSymbolName(index, (short) data << 2)));
                     else
                         return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.Equal,
                             new RegisterOperand(data, 21),
                             new RegisterOperand(data, 16),
-                            new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                            new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.bne:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     if (((data >> 16) & 0x1F) == 0)
                         return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.NotEqual,
                             new RegisterOperand(data, 21),
-                            new ImmediateOperand(0),
-                            new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                            new ImmediateOperand(0), 
+                            new LabelOperand(getSymbolName(index, (short) data << 2)));
                     else
                         return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.NotEqual,
                             new RegisterOperand(data, 21),
                             new RegisterOperand(data, 16),
-                            new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                            new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.blez:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.LessEqual,
                         new RegisterOperand(data, 21),
-                        new ImmediateOperand(0),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new ImmediateOperand(0), 
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.bgtz:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.Greater,
                         new RegisterOperand(data, 21),
-                        new ImmediateOperand(0),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new ImmediateOperand(0), 
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.addi:
                     return new ArithmeticInstruction(ArithmeticInstruction.Operation.Add,
                         new RegisterOperand(data, 16),
@@ -255,12 +254,12 @@ namespace symdump.exefile
                         return new SimpleInstruction("li", "{0} = {1}", new RegisterOperand(data, 16),
                             new ImmediateOperand((short) data));
                     else
-                        return new ArithmeticInstruction(ArithmeticInstruction.Operation.Add,
+                        return new ArithmeticInstruction(ArithmeticInstruction.Operation.Add, 
                             new RegisterOperand(data, 16),
                             new RegisterOperand(data, 21),
                             new ImmediateOperand((ushort) data));
                 case Opcode.subi:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.Sub,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.Sub, 
                         new RegisterOperand(data, 16),
                         new RegisterOperand(data, 21),
                         new ImmediateOperand((short) data));
@@ -270,17 +269,17 @@ namespace symdump.exefile
                         new RegisterOperand(data, 21),
                         new ImmediateOperand((ushort) data));
                 case Opcode.andi:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitAnd,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitAnd, 
                         new RegisterOperand(data, 16),
                         new RegisterOperand(data, 21),
                         new ImmediateOperand((short) data));
                 case Opcode.ori:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitOr,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitOr, 
                         new RegisterOperand(data, 16),
                         new RegisterOperand(data, 21),
                         new ImmediateOperand((short) data));
                 case Opcode.xori:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitXor,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitXor, 
                         new RegisterOperand(data, 16),
                         new RegisterOperand(data, 21),
                         new ImmediateOperand((short) data));
@@ -289,45 +288,45 @@ namespace symdump.exefile
                         new RegisterOperand(data, 16),
                         new ImmediateOperand((ushort) data << 16));
                 case Opcode.CpuControl:
-                    return DecodeCpuControl(index, data);
+                    return decodeCpuControl(index, data);
                 case Opcode.FloatingPoint:
                     return new WordData(data);
                 case Opcode.lb:
                     return new SimpleInstruction("lb", "{0} = (signed char){1}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lh:
                     return new SimpleInstruction("lh", "{0} = (short){1}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lwl:
                     return new SimpleInstruction("lwl", null, new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lw:
                     return new SimpleInstruction("lw", "{0} = (int){1}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lbu:
                     return new SimpleInstruction("lbu", "{0} = (unsigned char){1}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lhu:
                     return new SimpleInstruction("lhu", "{0} = (unsigned short){1}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.lwr:
                     return new SimpleInstruction("lwr", null, new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.sb:
                     return new SimpleInstruction("sb", "{1} = (char){0}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.sh:
                     return new SimpleInstruction("sh", "{1} = (short){0}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.swl:
                     return new SimpleInstruction("swl", null, new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.sw:
                     return new SimpleInstruction("sw", "{1} = (int){0}", new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.swr:
                     return new SimpleInstruction("swr", null, new RegisterOperand(data, 16),
-                        MakeGpBasedOperand(data, 21, (short) data));
+                        makeGpBasedOperand(data, 21, (short) data));
                 case Opcode.swc1:
                     return new SimpleInstruction("swc1", null, new RegisterOperand(data, 16),
                         new ImmediateOperand((short) data), new RegisterOperand(data, 21));
@@ -339,43 +338,43 @@ namespace symdump.exefile
                 case Opcode.cop1:
                     return new SimpleInstruction("cop1", null, new ImmediateOperand(data & ((1 << 26) - 1)));
                 case Opcode.cop2:
-                    return DecodeCop2(data);
+                    return decodeCop2(data);
                 case Opcode.cop3:
                     return new SimpleInstruction("cop3", null, new ImmediateOperand(data & ((1 << 26) - 1)));
                 case Opcode.beql:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.Equal,
                         new RegisterOperand(data, 21),
                         new RegisterOperand(data, 16),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.bnel:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.NotEqual,
                         new RegisterOperand(data, 21),
                         new RegisterOperand(data, 16),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.blezl:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.SignedLessEqual,
                         new RegisterOperand(data, 21),
-                        new ImmediateOperand(0),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new ImmediateOperand(0), 
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 case Opcode.bgtzl:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.Greater,
                         new RegisterOperand(data, 21),
-                        new ImmediateOperand(0),
-                        new LabelOperand(GetSymbolName(index, (short) data << 2)));
+                        new ImmediateOperand(0), 
+                        new LabelOperand(getSymbolName(index, (short) data << 2)));
                 default:
                     return new WordData(data);
             }
         }
 
-        private static Instruction DecodeRegisterFormat(uint data)
+        private static Instruction decodeRegisterFormat(uint data)
         {
             var rd = new RegisterOperand(data, 11);
             var rs2 = new RegisterOperand(data, 16);
@@ -451,10 +450,10 @@ namespace symdump.exefile
                         return new SimpleInstruction("move", "{0} = {1}", rd,
                             rs1);
                     else
-                        return new ArithmeticInstruction(ArithmeticInstruction.Operation.Add,
+                        return new ArithmeticInstruction(ArithmeticInstruction.Operation.Add, 
                             rd, rs1, rs2);
                 case OpcodeFunction.sub:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.Sub,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.Sub, 
                         rd, rs1, rs2);
                 case OpcodeFunction.subu:
                     return new ArithmeticInstruction(ArithmeticInstruction.Operation.Sub,
@@ -463,10 +462,10 @@ namespace symdump.exefile
                     return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitAnd,
                         rd, rs1, rs2);
                 case OpcodeFunction.or:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitOr,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitOr, 
                         rd, rs1, rs2);
                 case OpcodeFunction.xor:
-                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitXor,
+                    return new ArithmeticInstruction(ArithmeticInstruction.Operation.BitXor, 
                         rd, rs1, rs2);
                 case OpcodeFunction.nor:
                     return new SimpleInstruction("nor", "{0} = ~({1} | {2})", rd,
@@ -484,7 +483,7 @@ namespace symdump.exefile
             }
         }
 
-        private Instruction DecodeCpuControl(uint index, uint data)
+        private Instruction decodeCpuControl(uint index, uint data)
         {
             switch ((CpuControlOpcode) ((data >> 21) & 0x1f))
             {
@@ -495,18 +494,18 @@ namespace symdump.exefile
                     switch ((data >> 16) & 0x1f)
                     {
                         case 0:
-                            AddXref(index - 4, (uint) ((index + (short) data) << 2));
+                            addXref(index - 4, (uint) ((index + (short) data) << 2));
                             return new SimpleInstruction("bc0f", null,
-                                new LabelOperand(GetSymbolName(index, (ushort) data << 2)));
+                                new LabelOperand(getSymbolName(index, (ushort) data << 2)));
                         case 1:
-                            AddXref(index - 4, (uint) ((index + (short) data) << 2));
+                            addXref(index - 4, (uint) ((index + (short) data) << 2));
                             return new SimpleInstruction("bc0t", null,
-                                new LabelOperand(GetSymbolName(index, (ushort) data << 2)));
+                                new LabelOperand(getSymbolName(index, (ushort) data << 2)));
                         default:
                             return new WordData(data);
                     }
                 case CpuControlOpcode.tlb:
-                    return DecodeTlb(data);
+                    return decodeTlb(data);
                 case CpuControlOpcode.mfc0:
                     return new SimpleInstruction("mfc0", null, new RegisterOperand(data, 16),
                         new C0RegisterOperand(data, 11));
@@ -515,7 +514,7 @@ namespace symdump.exefile
             }
         }
 
-        private static Instruction DecodeTlb(uint data)
+        private static Instruction decodeTlb(uint data)
         {
             switch ((TlbOpcode) (data & 0x1f))
             {
@@ -534,50 +533,50 @@ namespace symdump.exefile
             }
         }
 
-        private Instruction DecodePcRelative(uint index, uint data)
+        private Instruction decodePcRelative(uint index, uint data)
         {
             var rs = new RegisterOperand(data, 21);
-            var offset = new LabelOperand(GetSymbolName(index, (ushort) data << 2));
+            var offset = new LabelOperand(getSymbolName(index, (ushort) data << 2));
             switch ((data >> 16) & 0x1f)
             {
                 case 0:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.SignedLess,
                         rs,
-                        new ImmediateOperand(0),
+                        new ImmediateOperand(0), 
                         offset);
                 case 1:
-                    AddXref(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addXref(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalBranchInstruction(ConditionalBranchInstruction.Operation.SignedGreaterEqual,
                         rs,
-                        new ImmediateOperand(0),
+                        new ImmediateOperand(0), 
                         offset);
                 case 16:
-                    AddCall(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addCall(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalCallInstruction(ConditionalBranchInstruction.Operation.SignedLess,
                         rs,
-                        new ImmediateOperand(0),
+                        new ImmediateOperand(0), 
                         offset);
                 case 17:
-                    AddCall(index - 4, (uint) ((index + (short) data) << 2));
-                    _analysisQueue.Enqueue(index + (uint) ((short) data << 2));
+                    addCall(index - 4, (uint) ((index + (short) data) << 2));
+                    m_analysisQueue.Enqueue(index + (uint) ((short) data << 2));
                     return new ConditionalCallInstruction(ConditionalBranchInstruction.Operation.SignedGreaterEqual,
                         rs,
-                        new ImmediateOperand(0),
+                        new ImmediateOperand(0), 
                         offset);
                 default:
                     return new WordData(data);
             }
         }
 
-        private static Instruction DecodeCop2(uint data)
+        private static Instruction decodeCop2(uint data)
         {
             var opc = data & ((1 << 26) - 1);
             if (((data >> 25) & 1) != 0)
-                return DecodeCop2Gte(opc);
+                return decodeCop2Gte(opc);
 
             var cf = (opc >> 21) & 0x1F;
             switch (cf)
@@ -599,7 +598,7 @@ namespace symdump.exefile
             }
         }
 
-        private static Instruction DecodeCop2Gte(uint data)
+        private static Instruction decodeCop2Gte(uint data)
         {
             switch (data & 0x1F003FF)
             {
@@ -672,49 +671,49 @@ namespace symdump.exefile
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Local")]
         private class Header
         {
-            public readonly uint BAddr;
-            public readonly uint BSize;
-            public readonly uint DAddr;
-            public readonly uint Data;
-            public readonly uint DSize;
-            public readonly uint Gp0;
-            public readonly char[] ID;
-            public readonly uint Pc0;
-            public readonly uint SAddr;
-            public readonly uint SavedFp;
-            public readonly uint SavedGp;
-            public readonly uint SavedRa;
-            public readonly uint SavedS0;
-            public readonly uint SavedSp;
-            public readonly uint SSize;
-            public readonly uint TAddr;
-            public readonly uint Text;
-            public readonly uint TSize;
+            public readonly uint bAddr;
+            public readonly uint bSize;
+            public readonly uint dAddr;
+            public readonly uint data;
+            public readonly uint dSize;
+            public readonly uint gp0;
+            public readonly char[] id;
+            public readonly uint pc0;
+            public readonly uint sAddr;
+            public readonly uint savedFp;
+            public readonly uint savedGp;
+            public readonly uint savedRa;
+            public readonly uint savedS0;
+            public readonly uint savedSp;
+            public readonly uint sSize;
+            public readonly uint tAddr;
+            public readonly uint text;
+            public readonly uint tSize;
 
             public Header(EndianBinaryReader reader)
             {
-                ID = reader.ReadBytes(8).Select(b => (char) b).ToArray();
+                id = reader.readBytes(8).Select(b => (char) b).ToArray();
 
-                if (!"PS-X EXE".Equals(new string(ID)))
+                if (!"PS-X EXE".Equals(new string(id)))
                     throw new Exception("Header ID mismatch");
 
-                Text = reader.ReadUInt32();
-                Data = reader.ReadUInt32();
-                Pc0 = reader.ReadUInt32();
-                Gp0 = reader.ReadUInt32();
-                TAddr = reader.ReadUInt32();
-                TSize = reader.ReadUInt32();
-                DAddr = reader.ReadUInt32();
-                DSize = reader.ReadUInt32();
-                BAddr = reader.ReadUInt32();
-                BSize = reader.ReadUInt32();
-                SAddr = reader.ReadUInt32();
-                SSize = reader.ReadUInt32();
-                SavedSp = reader.ReadUInt32();
-                SavedFp = reader.ReadUInt32();
-                SavedGp = reader.ReadUInt32();
-                SavedRa = reader.ReadUInt32();
-                SavedS0 = reader.ReadUInt32();
+                text = reader.readUInt32();
+                data = reader.readUInt32();
+                pc0 = reader.readUInt32();
+                gp0 = reader.readUInt32();
+                tAddr = reader.readUInt32();
+                tSize = reader.readUInt32();
+                dAddr = reader.readUInt32();
+                dSize = reader.readUInt32();
+                bAddr = reader.readUInt32();
+                bSize = reader.readUInt32();
+                sAddr = reader.readUInt32();
+                sSize = reader.readUInt32();
+                savedSp = reader.readUInt32();
+                savedFp = reader.readUInt32();
+                savedGp = reader.readUInt32();
+                savedRa = reader.readUInt32();
+                savedS0 = reader.readUInt32();
             }
         }
     }

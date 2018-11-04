@@ -9,32 +9,32 @@ namespace symdump.symfile
 {
     public class StructDef : IEquatable<StructDef>
     {
-        private readonly List<StructMember> _members = new List<StructMember>();
-        private readonly string _name;
+        public readonly List<StructMember> members = new List<StructMember>();
+        public readonly string name;
 
         public StructDef(BinaryReader stream, string name)
         {
-            _name = name;
+            this.name = name;
             while (true)
             {
                 var typedValue = new TypedValue(stream);
-                if (typedValue.Type == (0x80 | 20))
+                if (typedValue.type == (0x80 | 20))
                 {
                     var m = new StructMember(typedValue, stream, false);
 
-                    if (m.TypeInfo.ClassType == ClassType.EndOfStruct)
+                    if (m.typeInfo.classType == ClassType.EndOfStruct)
                         break;
 
-                    _members.Add(m);
+                    members.Add(m);
                 }
-                else if (typedValue.Type == (0x80 | 22))
+                else if (typedValue.type == (0x80 | 22))
                 {
                     var m = new StructMember(typedValue, stream, true);
 
-                    if (m.TypeInfo.ClassType == ClassType.EndOfStruct)
+                    if (m.typeInfo.classType == ClassType.EndOfStruct)
                         break;
 
-                    _members.Add(m);
+                    members.Add(m);
                 }
                 else
                 {
@@ -43,22 +43,22 @@ namespace symdump.symfile
             }
         }
 
-        public bool IsFake => new Regex(@"^\.\d+fake$").IsMatch(_name);
+        public bool isFake => new Regex(@"^\.\d+fake$").IsMatch(name);
 
         public bool Equals(StructDef other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return _members.SequenceEqual(other._members) && string.Equals(_name, other._name);
+            return members.SequenceEqual(other.members) && string.Equals(name, other.name);
         }
 
-        public void Dump(IndentedTextWriter writer)
+        public void dump(IndentedTextWriter writer)
         {
-            writer.WriteLine($"struct {_name} {{");
-            ++writer.Indent;
-            foreach (var m in _members)
+            writer.WriteLine($"struct {name} {{");
+            ++writer.indent;
+            foreach (var m in members)
                 writer.WriteLine(m);
-            --writer.Indent;
+            --writer.indent;
             writer.WriteLine("};");
         }
 
@@ -74,16 +74,15 @@ namespace symdump.symfile
         {
             unchecked
             {
-                return ((_members != null ? _members.GetHashCode() : 0) * 397) ^
-                       (_name != null ? _name.GetHashCode() : 0);
+                return ((members != null ? members.GetHashCode() : 0) * 397) ^ (name != null ? name.GetHashCode() : 0);
             }
         }
 
-        public StructMember ForOffset(uint ofs)
+        public StructMember forOffset(uint ofs)
         {
-            return _members
-                .Where(m => m.TypeInfo.ClassType != ClassType.Bitfield && m.TypedValue.Value <= ofs)
-                .OrderBy(m => m.TypedValue.Value)
+            return members
+                .Where(m => m.typeInfo.classType != ClassType.Bitfield && m.typedValue.value <= ofs)
+                .OrderBy(m => m.typedValue.value)
                 .FirstOrDefault();
         }
     }

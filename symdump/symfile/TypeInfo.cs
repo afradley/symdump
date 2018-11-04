@@ -8,56 +8,56 @@ namespace symdump.symfile
 {
     public class TypeInfo : IEquatable<TypeInfo>
     {
-        public readonly ClassType ClassType;
-        public readonly uint[] Dims;
-        public readonly uint Size;
-        public readonly string Tag;
-        public readonly TypeDef TypeDef;
+        public readonly ClassType classType;
+        public readonly uint[] dims;
+        public readonly uint size;
+        public readonly string tag;
+        public readonly TypeDef typeDef;
 
         public TypeInfo(BinaryReader reader, bool extended)
         {
-            ClassType = reader.ReadClassType();
-            TypeDef = reader.ReadTypeDef();
-            Size = reader.ReadUInt32();
+            classType = reader.readClassType();
+            typeDef = reader.readTypeDef();
+            size = reader.ReadUInt32();
 
             if (extended)
             {
                 var n = reader.ReadUInt16();
-                Dims = new uint[n];
+                dims = new uint[n];
                 for (var i = 0; i < n; ++i)
-                    Dims[i] = reader.ReadUInt32();
+                    dims[i] = reader.ReadUInt32();
 
-                Tag = reader.ReadPascalString();
+                tag = reader.readPascalString();
             }
             else
             {
-                Dims = new uint[0];
-                Tag = null;
+                dims = new uint[0];
+                tag = null;
             }
         }
 
-        private bool IsFake => Tag != null && new Regex(@"^\.\d+fake$").IsMatch(Tag);
+        public bool isFake => tag != null && new Regex(@"^\.\d+fake$").IsMatch(tag);
 
         public bool Equals(TypeInfo other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
 
-            if (IsFake)
-                return ClassType == other.ClassType && TypeDef.Equals(other.TypeDef) && Size == other.Size &&
-                       Dims.SequenceEqual(other.Dims) && other.IsFake;
-            return ClassType == other.ClassType && TypeDef.Equals(other.TypeDef) && Size == other.Size &&
-                   Dims.SequenceEqual(other.Dims) && string.Equals(Tag, other.Tag);
+            if (isFake)
+                return classType == other.classType && typeDef.Equals(other.typeDef) && size == other.size &&
+                       dims.SequenceEqual(other.dims) && other.isFake;
+            return classType == other.classType && typeDef.Equals(other.typeDef) && size == other.size &&
+                   dims.SequenceEqual(other.dims) && string.Equals(tag, other.tag);
         }
 
         public override string ToString()
         {
-            return $"classType={ClassType} typeDef={TypeDef} size={Size}, dims=[{string.Join(",", Dims)}]";
+            return $"classType={classType} typeDef={typeDef} size={size}, dims=[{string.Join(",", dims)}]";
         }
 
-        public string AsCode(string name)
+        public string asCode(string name)
         {
-            return TypeDef.AsCode(name, this);
+            return typeDef.asCode(name, this);
         }
 
         public override bool Equals(object obj)
@@ -72,11 +72,11 @@ namespace symdump.symfile
         {
             unchecked
             {
-                var hashCode = (int) ClassType;
-                hashCode = (hashCode * 397) ^ TypeDef.GetHashCode();
-                hashCode = (hashCode * 397) ^ (int) Size;
-                hashCode = (hashCode * 397) ^ Dims.GetHashCode();
-                hashCode = (hashCode * 397) ^ (!IsFake ? Tag.GetHashCode() : 0);
+                var hashCode = (int) classType;
+                hashCode = (hashCode * 397) ^ typeDef.GetHashCode();
+                hashCode = (hashCode * 397) ^ (int) size;
+                hashCode = (hashCode * 397) ^ dims.GetHashCode();
+                hashCode = (hashCode * 397) ^ (!isFake ? tag.GetHashCode() : 0);
                 return hashCode;
             }
         }
