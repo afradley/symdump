@@ -11,13 +11,14 @@ namespace symdump.symfile
     {
         private readonly Dictionary<string, EnumDef> m_enums = new Dictionary<string, EnumDef>();
         private readonly SortedSet<string> m_externs = new SortedSet<string>();
+        public readonly Dictionary<string, Variable> variables = new Dictionary<string, Variable>();
         public readonly List<Function> functions = new List<Function>();
         private readonly Dictionary<string, string> m_funcTypes = new Dictionary<string, string>();
         internal readonly Dictionary<uint, List<Label>> labels = new Dictionary<uint, List<Label>>();
-        private readonly Dictionary<string, StructDef> m_structs = new Dictionary<string, StructDef>();
+        public readonly Dictionary<string, StructDef> m_structs = new Dictionary<string, StructDef>();
         private readonly byte m_targetUnit;
         private readonly Dictionary<string, TypeInfo> m_typedefs = new Dictionary<string, TypeInfo>();
-        private readonly Dictionary<string, UnionDef> m_unions = new Dictionary<string, UnionDef>();
+        public readonly Dictionary<string, UnionDef> m_unions = new Dictionary<string, UnionDef>();
         private readonly byte m_version;
         private string m_mxInfo;
 
@@ -241,6 +242,17 @@ namespace symdump.symfile
             m_typedefs.Add(name, typeInfo);
         }
 
+        private void addVariable(string name, TypeInfo typeInfo, int offset)
+        {
+            string key = offset.ToString("X");
+            string value = typeInfo.asCode(name);
+            if (!variables.ContainsKey(key))
+            {
+                Variable variable = new Variable(unchecked((uint)offset), name, typeInfo);
+                variables.Add(key, variable);
+            }
+        }
+
         private void dumpType20(BinaryReader stream, int offset)
         {
             var ti = stream.readTypeInfo(false);
@@ -261,14 +273,24 @@ namespace symdump.symfile
                 addTypedef(name, ti);
             else if (ti.classType == ClassType.External)
                 if (ti.typeDef.isFunctionReturnType)
+                {
                     m_funcTypes[name] = ti.asCode("").Trim();
+                }
                 else
+                {
                     m_externs.Add($"extern {ti.asCode(name)}; // offset 0x{offset:X}");
+                    addVariable(name, ti, offset);
+                }
             else if (ti.classType == ClassType.Static)
                 if (ti.typeDef.isFunctionReturnType)
+                {
                     m_funcTypes[name] = ti.asCode("").Trim();
+                }
                 else
+                {
                     m_externs.Add($"static {ti.asCode(name)}; // offset 0x{offset:X}");
+                    addVariable(name, ti, offset);
+                }
             else
                 throw new Exception("Gomorrha");
         }
@@ -284,14 +306,24 @@ namespace symdump.symfile
                 addTypedef(name, ti);
             else if (ti.classType == ClassType.External)
                 if (ti.typeDef.isFunctionReturnType)
+                {
                     m_funcTypes[name] = ti.asCode("").Trim();
+                }
                 else
+                {
                     m_externs.Add($"extern {ti.asCode(name)}; // offset 0x{offset:X}");
+                    addVariable(name, ti, offset);
+                }
             else if (ti.classType == ClassType.Static)
                 if (ti.typeDef.isFunctionReturnType)
+                {
                     m_funcTypes[name] = ti.asCode("").Trim();
+                }
                 else
+                {
                     m_externs.Add($"static {ti.asCode(name)}; // offset 0x{offset:X}");
+                    addVariable(name, ti, offset);
+                }
             else
                 throw new Exception("Gomorrha");
         }

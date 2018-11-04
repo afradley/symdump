@@ -16,13 +16,13 @@ namespace symdump.symfile
         private readonly uint m_line;
         private readonly uint m_mask;
         private readonly int m_maskOffs;
-        private readonly string m_name;
-
         private readonly List<string> m_parameters = new List<string>();
         private readonly Register m_register;
         private readonly string m_returnType;
         private readonly Register m_stackBase;
         private readonly uint m_stackFrameSize;
+
+        public string Name { get; }
 
         public Function(BinaryReader reader, uint ofs, IReadOnlyDictionary<string, string> funcTypes)
         {
@@ -36,9 +36,9 @@ namespace symdump.symfile
 
             m_line = reader.ReadUInt32();
             m_file = reader.readPascalString();
-            m_name = reader.readPascalString();
+            Name = reader.readPascalString();
 
-            if (!funcTypes.TryGetValue(m_name, out m_returnType))
+            if (!funcTypes.TryGetValue(Name, out m_returnType))
                 m_returnType = "__UNKNOWN__";
 
             while (true)
@@ -107,7 +107,7 @@ namespace symdump.symfile
 
         public string getSignature()
         {
-            return $"{m_returnType} /*${m_register}*/ {m_name}({string.Join(", ", m_parameters)})";
+            return $"{m_returnType} /*${m_register}*/ {Name}({string.Join(", ", m_parameters)})";
         }
     }
 }
