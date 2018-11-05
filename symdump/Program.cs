@@ -8,36 +8,52 @@ namespace symdump
 {
     internal class Program
     {
+        static string fileName = null;
+        static FileStream output = null;
+        static StreamWriter writer = null;
+        static uint numEntries = 0;
+        static uint fileIndex = 0;
+        static uint maxEntries = 100000;
+        static uint maxArrayLength = 1000;
+
         private static void Main(string[] args)
         {
-            if (!File.Exists(args[0]))
+            if (args.Length < 1)
+            {
                 return;
+            }
+
+            fileName = args[0];
+
+            if (args.Length >= 2) UInt32.TryParse(args[1], out maxEntries);
+            if (args.Length >= 3) UInt32.TryParse(args[2], out maxArrayLength);
+
+            if (!File.Exists(args[0]))
+            {
+                return;
+            }
 
             SymFile symFile;
-            using (var fs = new FileStream(args[0], FileMode.Open))
+            using (var fs = new FileStream(fileName, FileMode.Open))
             {
                 symFile = new SymFile(new BinaryReader(fs));
             }
 
-            var labelDefFileName = Path.ChangeExtension(args[0], "map");
-
-            FileStream output = new FileStream(labelDefFileName, FileMode.Create);
-            StreamWriter writer = new StreamWriter(output);
             foreach (Function func in symFile.functions)
             {
-                writer.Write(func.address.ToString("x") + ":\r\n" + ".code\t" + func.Name + "\r\n");
+                uint address = 0x00000000 + func.address;
+                WriteEntry(address.ToString("x").PadLeft(8, '0') + ":\r\n" + ".code\t" + func.Name + "\r\n");
             }
 
             foreach (System.Collections.Generic.KeyValuePair<string, Variable> pair in symFile.variables)
             {
                 Variable variable = pair.Value;
-                WriteVariableRecursive(symFile, writer, variable.m_Name, variable.m_Address, variable.m_TypeInfo);
+                uint address = 0x00000000 + variable.m_Address;
+                WriteVariableRecursive(symFile, variable.m_Name, address, variable.m_TypeInfo);
             }
-
-            output.Flush();
         }
 
-        static void WriteVariableRecursive(SymFile symFile, StreamWriter writer, string name, uint address, TypeInfo typeInfo)
+        static void WriteVariableRecursive(SymFile symFile, string name, uint address, TypeInfo typeInfo)
         {
             if (typeInfo.isFake)
             {
@@ -58,11 +74,14 @@ namespace symdump
             }
 
             arrayLength = Math.Max(1, arrayLength);
-            uint arraySize = Math.Max(1, typeInfo.size / arrayLength);
+            uint arrayEntrySize = Math.Max(1, typeInfo.size / arrayLength);
+
+            // Only cap the array length after getting the arrayEntrySize.
+            arrayLength = Math.Min(arrayLength, maxArrayLength);
 
             for (int i = 0; i < arrayLength; i++)
             {
-                uint arrayAddress = address + (arraySize * (uint)i);
+                uint arrayAddress = address + (arrayEntrySize * (uint)i);
                 string arrayName = name;
                 if (isArray)
                 {
@@ -78,22 +97,22 @@ namespace symdump
                         string memberName = arrayName + "." + member.name;
                         if (Array.IndexOf(member.typeInfo.typeDef.derivedTypes, DerivedType.Pointer) >= 0)
                         {
-                            WriteVariable(symFile, writer, memberName, memberAddress, member.typeInfo, true);
+                            WriteVariable(symFile, memberName, memberAddress, member.typeInfo, true);
                         }
                         else
                         {
-                            WriteVariableRecursive(symFile, writer, memberName, memberAddress, member.typeInfo);
+                            WriteVariableRecursive(symFile, memberName, memberAddress, member.typeInfo);
                         }
                     }
                 }
                 else
                 {
-                    WriteVariable(symFile, writer, arrayName, arrayAddress, typeInfo, false);
+                    WriteVariable(symFile, arrayName, arrayAddress, typeInfo, false);
                 }
             }
         }
 
-        static void WriteVariable(SymFile symFile, StreamWriter writer, string name, uint address, TypeInfo typeInfo, bool isPointer)
+        static void WriteVariable(SymFile symFile, string name, uint address, TypeInfo typeInfo, bool isPointer)
         {
             string typeCode = null;
 
@@ -157,7 +176,32 @@ namespace symdump
 
             if (typeCode != null)
             {
-                writer.Write(address.ToString("x") + ":\r\n" + typeCode + name + "\r\n");
+                WriteEntry(address.ToString("x").PadLeft(8, '0') + ":\r\n" + typeCode + name + "\r\n");
+            }
+        }
+
+        static void WriteEntry(string entry)
+        {
+            if (output == null)
+            {
+                string labelDefFileName =
+                    Path.GetFileNameWithoutExtension(fileName) +
+                    "." + fileIndex + ".map";
+
+                output = new FileStream(labelDefFileName, FileMode.Create);
+                writer = new StreamWriter(output);
+            }
+
+            writer.Write(entry);
+            writer.Flush();
+
+            numEntries++;
+            if (numEntries > maxEntries)
+            {
+                output = null;
+                writer = null;
+                numEntries = 0;
+                fileIndex++;
             }
         }
     }
