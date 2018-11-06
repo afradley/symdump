@@ -63,7 +63,10 @@ namespace symdump
             BaseType baseType = typeInfo.typeDef.baseType;
 
             uint arrayLength = 1;
+            //bool isArray = IsArray(typeInfo.typeDef);
             bool isArray = Array.IndexOf(typeInfo.typeDef.derivedTypes, DerivedType.Array) >= 0;
+            bool isPointer = Array.IndexOf(typeInfo.typeDef.derivedTypes, DerivedType.Pointer) >= 0;
+
             if (isArray)
             {
                 int dims = typeInfo.dims.Length;
@@ -88,26 +91,19 @@ namespace symdump
                     arrayName += "[" + i.ToString() + "]";
                 }
 
-                if (baseType == BaseType.StructDef)
+                if (baseType == BaseType.StructDef && !isPointer)
                 {
                     StructDef structDef = symFile.m_structs[typeInfo.tag];
                     foreach (StructMember member in structDef.members)
                     {
                         uint memberAddress = arrayAddress + unchecked((uint)member.typedValue.value);
                         string memberName = arrayName + "." + member.name;
-                        if (Array.IndexOf(member.typeInfo.typeDef.derivedTypes, DerivedType.Pointer) >= 0)
-                        {
-                            WriteVariable(symFile, memberName, memberAddress, member.typeInfo, true);
-                        }
-                        else
-                        {
-                            WriteVariableRecursive(symFile, memberName, memberAddress, member.typeInfo);
-                        }
+                        WriteVariableRecursive(symFile, memberName, memberAddress, member.typeInfo);
                     }
                 }
                 else
                 {
-                    WriteVariable(symFile, arrayName, arrayAddress, typeInfo, false);
+                    WriteVariable(symFile, arrayName, arrayAddress, typeInfo, isPointer);
                 }
             }
         }
@@ -203,6 +199,30 @@ namespace symdump
                 numEntries = 0;
                 fileIndex++;
             }
+        }
+
+        static bool IsArray(TypeDef typeDef)
+        {
+            // This is so that pointers to arrays don't get expanded.
+            bool isArray = false;
+            foreach (DerivedType type in typeDef.derivedTypes)
+            {
+                if (type == DerivedType.None)
+                {
+                    break;
+                }
+
+                if (type == DerivedType.Array)
+                {
+                    isArray = true;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return isArray;
         }
     }
 }
